@@ -2,6 +2,7 @@
 use liner::{Completer, Context, CursorPosition, Event, EventKind, FilenameCompleter, Prompt};
 use regex::Regex;
 use std::env::{self, current_dir};
+use std::fs;
 use std::io;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
@@ -64,13 +65,28 @@ impl Completer for CommentCompleter {
 }
 
 fn main() {
+    // use signal_hook crate for interacring with SIFINT (to stop closing the shell when exiting a programm) (used help)
+    use signal_hook::consts::SIGINT;
+    use signal_hook::iterator::Signals;
+    let mut signals = Signals::new([SIGINT]).unwrap();
+    std::thread::spawn(move || {
+        for _ in signals.forever() {
+            // do nothing → ignore Ctrl-C in the shell
+        }
+    });
+
     // get the home directory as PathBuf and convert to a &str
     let binding = dirs::home_dir().unwrap();
     let homedir = binding.as_os_str().to_str().unwrap();
     // set the path to the history file
-    let history_file = "/home/marks/.config/catfish/History.txt";
+    let history_dir = format!("{}/catfish/", homedir);
+    let history_file = format!("{}history.txt", history_dir);
     // create variable prevpath for "cd -"
     let mut prevpath = env::current_dir().unwrap();
+    // check if history Directory exist if not create it
+    if Path::new(&history_dir).exists() == false {
+        _ = fs::create_dir(&history_dir);
+    }
     // create instanze of Context and CommentCompleter from the "redox_liner" create
     let mut con = Context::new();
     let mut completer = CommentCompleter { inner: None };
