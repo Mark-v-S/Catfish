@@ -109,11 +109,11 @@ fn main() {
             curpath = curpath.replace(homedir, "⛩"); //ᗢ ⛩ λ | ᓚᘏᗢ
         }
 
-        // configure the opper prompt line
+        // configure the upper prompt line
         println!(
             "\x1b[95m╭╴\x1b[0m\x1b[91m{}\x1b[0m on \x1b[96m{}\x1b[0m in \x1b[95m{}\x1b[0m",
-            whoami::username(),
-            whoami::hostname(),
+            whoami::username().unwrap_or_else(|_| "unknown".into()),
+            whoami::hostname().unwrap_or_else(|_| "unknown".into()),
             curpath
         );
 
