@@ -65,6 +65,16 @@ impl Completer for CommentCompleter {
 }
 
 fn main() {
+    // use signal_hook crate for interacring with SIFINT (to stop closing the shell when exiting a programm) (used help)
+    use signal_hook::consts::SIGINT;
+    use signal_hook::iterator::Signals;
+    let mut signals = Signals::new([SIGINT]).unwrap();
+    std::thread::spawn(move || {
+        for _ in signals.forever() {
+            // do nothing → ignore Ctrl-C in the shell
+        }
+    });
+
     // get the home directory as PathBuf and convert to a &str
     let binding = dirs::home_dir().unwrap();
     let homedir = binding.as_os_str().to_str().unwrap();
@@ -99,11 +109,11 @@ fn main() {
             curpath = curpath.replace(homedir, "⛩"); //ᗢ ⛩ λ | ᓚᘏᗢ
         }
 
-        // configure the opper prompt line
+        // configure the upper prompt line
         println!(
             "\x1b[95m╭╴\x1b[0m\x1b[91m{}\x1b[0m on \x1b[96m{}\x1b[0m in \x1b[95m{}\x1b[0m",
-            whoami::username(),
-            whoami::hostname(),
+            whoami::username().unwrap_or_else(|_| "unknown".into()),
+            whoami::hostname().unwrap_or_else(|_| "unknown".into()),
             curpath
         );
 
