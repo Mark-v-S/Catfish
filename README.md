@@ -11,6 +11,7 @@ A Shell writen in rust inspired by the fish shell with most basic functions tho 
 0.1.1
 - [x] ~~doesnt close on exiting process~~
 
+---
 
 - [ ] better autocomplet/ suggestions
 - [ ] and potenionally more
