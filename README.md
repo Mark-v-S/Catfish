@@ -11,6 +11,9 @@ A Shell writen in rust inspired by the fish shell with most basic functions tho 
 ## 0.1.1
 - [x] ~~doesnt close on exiting process~~
 
+## 0.1.2
+- [x] ~~doesnt crash if there is no or empty input~~
+
 ## potenionally coming
 
 - [ ] better autocomplet/ suggestions

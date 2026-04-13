@@ -132,97 +132,99 @@ fn main() {
             Ok(res) => {
                 //res zu string convertiren zur weiter verarbeitung
                 let input = res.as_str();
+                //checks if there actualy was an input
+                if !res.trim().is_empty() {
+                    // split the input at | (pipes) to get the differnt commands
+                    // -must be peekable so we know when we are on the last command
+                    let mut commands = input.trim().split(" | ").peekable();
+                    let mut previous_command = None;
 
-                // split the input at | (pipes) to get the differnt commands
-                // -must be peekable so we know when we are on the last command
-                let mut commands = input.trim().split(" | ").peekable();
-                let mut previous_command = None;
+                    // check every command
+                    while let Some(command) = commands.next() {
+                        let mut parts = command.trim().split_whitespace();
+                        let command = parts.next().unwrap();
+                        let args = parts;
 
-                // check every command
-                while let Some(command) = commands.next() {
-                    let mut parts = command.trim().split_whitespace();
-                    let command = parts.next().unwrap();
-                    let args = parts;
-
-                    // check if its one of the "preconfigured" commands and which or not
-                    match command {
-                        // the cd comand
-                        "cd" => {
-                            // create the new directory as a string
-                            let new_dir = args.peekable().peek().map_or(homedir, |x| *x);
-                            // make the new directory a path
-                            let root = Path::new(new_dir);
-                            // safe the curent directory tempurarly
-                            let mut temppath = env::current_dir().unwrap();
-                            // if the new directory is the as the working directory set the temporay diractory back to the old directory
-                            if (root == temppath) || (new_dir == "~" && homedir == curpath) {
-                                temppath = prevpath;
-                            // if the new directory is "~" set the directory to the home directory
-                            } else if new_dir == "~" {
-                                if let Err(e) = env::set_current_dir(homedir) {
+                        // check if its one of the "preconfigured" commands and which or not
+                        match command {
+                            // the cd comand
+                            "cd" => {
+                                // create the new directory as a string
+                                let new_dir = args.peekable().peek().map_or(homedir, |x| *x);
+                                // make the new directory a path
+                                let root = Path::new(new_dir);
+                                // safe the curent directory tempurarly
+                                let mut temppath = env::current_dir().unwrap();
+                                // if the new directory is the as the working directory set the temporay diractory back to the old directory
+                                if (root == temppath) || (new_dir == "~" && homedir == curpath) {
+                                    temppath = prevpath;
+                                // if the new directory is "~" set the directory to the home directory
+                                } else if new_dir == "~" {
+                                    if let Err(e) = env::set_current_dir(homedir) {
+                                        eprintln!("{}", e);
+                                    }
+                                // if the new directory is a "-" set the directory to the previous working directory
+                                } else if new_dir == "-" {
+                                    if let Err(e) = env::set_current_dir(prevpath) {
+                                        eprintln!("{}", e);
+                                    }
+                                // if the new directory doesnt exist/work give an error and set the temporay diractory back to the old directory
+                                } else if let Err(e) = env::set_current_dir(&root) {
                                     eprintln!("{}", e);
+                                    temppath = prevpath;
                                 }
-                            // if the new directory is a "-" set the directory to the previous working directory
-                            } else if new_dir == "-" {
-                                if let Err(e) = env::set_current_dir(prevpath) {
-                                    eprintln!("{}", e);
-                                }
-                            // if the new directory doesnt exist/work give an error and set the temporay diractory back to the old directory
-                            } else if let Err(e) = env::set_current_dir(&root) {
-                                eprintln!("{}", e);
-                                temppath = prevpath;
+                                // set the previous directory to the tempory directory
+                                prevpath = temppath;
+                                previous_command = None;
                             }
-                            // set the previous directory to the tempory directory
-                            prevpath = temppath;
-                            previous_command = None;
-                        }
-                        // exit the shell
-                        "exit" => return,
-                        // exicute the command
-                        command => {
-                            let stdin = previous_command
-                                .map_or(Stdio::inherit(), |output: Child| {
-                                    Stdio::from(output.stdout.unwrap())
-                                });
+                            // exit the shell
+                            "exit" => return,
+                            // exicute the command
+                            command => {
+                                let stdin = previous_command
+                                    .map_or(Stdio::inherit(), |output: Child| {
+                                        Stdio::from(output.stdout.unwrap())
+                                    });
 
-                            let stdout = if commands.peek().is_some() {
-                                // there is another command piped behind this one
-                                // prepare to send output to the next command
-                                Stdio::piped()
-                            } else {
-                                // there are no more commands piped behind this one
-                                // send output to shell stdout
-                                Stdio::inherit()
-                            };
+                                let stdout = if commands.peek().is_some() {
+                                    // there is another command piped behind this one
+                                    // prepare to send output to the next command
+                                    Stdio::piped()
+                                } else {
+                                    // there are no more commands piped behind this one
+                                    // send output to shell stdout
+                                    Stdio::inherit()
+                                };
 
-                            let output = Command::new(command)
-                                .args(args)
-                                .stdin(stdin)
-                                .stdout(stdout)
-                                .spawn();
+                                let output = Command::new(command)
+                                    .args(args)
+                                    .stdin(stdin)
+                                    .stdout(stdout)
+                                    .spawn();
 
-                            match output {
-                                Ok(output) => {
-                                    previous_command = Some(output);
-                                }
-                                Err(e) => {
-                                    previous_command = None;
-                                    eprintln!("{}", e);
-                                }
-                            };
+                                match output {
+                                    Ok(output) => {
+                                        previous_command = Some(output);
+                                    }
+                                    Err(e) => {
+                                        previous_command = None;
+                                        eprintln!("{}", e);
+                                    }
+                                };
+                            }
                         }
                     }
-                }
 
-                // pusch the new command to the runtime history
-                con.history.push(input.into()).unwrap();
+                    // pusch the new command to the runtime history
+                    con.history.push(input.into()).unwrap();
 
-                if let Some(mut final_command) = previous_command {
-                    // -block until the final command has finished
-                    let _ = final_command.wait();
+                    if let Some(mut final_command) = previous_command {
+                        // -block until the final command has finished
+                        let _ = final_command.wait();
+                    }
+                    // commit the runtime history to the histoy file
+                    con.history.commit_to_file();
                 }
-                // commit the runtime history to the histoy file
-                con.history.commit_to_file();
             }
             Err(e) => {
                 match e.kind() {
