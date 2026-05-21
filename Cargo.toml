@@ -10,3 +10,5 @@ redox_liner = "0.5.3"
 regex = "*"
 dirs = "*"
 signal-hook = "0.3"
+toml = "0.8"
+serde = { version = "1", features = ["derive"] }

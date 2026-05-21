@@ -8,6 +8,28 @@ use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use termion::color;
 
+/// TOML STUFF
+/// ---START---
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize, Serialize)]
+struct AppConfig {
+    prompt: PromptConfig,
+    fuctions: Option<FunctionsConfig>, //placeholder: String
+}
+
+#[derive(Debug, Deserialize, Serialize, Default)]
+struct PromptConfig {
+    home_symbol: char,
+    prompt_symbol: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, Default)]
+struct FunctionsConfig {
+    placeholder: String,
+}
+/// ---TOML STUFF END---
+
 fn highlight_dodo(s: &str) -> String {
     let reg_exp = Regex::new("(?P<k>dodo)").unwrap();
     let format = format!("{}$k{}", color::Fg(color::Red), color::Fg(color::Reset));
@@ -79,14 +101,47 @@ fn main() {
     let binding = dirs::home_dir().unwrap();
     let homedir = binding.as_os_str().to_str().unwrap();
     // set the path to the history file
-    let history_dir = format!("{}/catfish/", homedir);
-    let history_file = format!("{}history.txt", history_dir);
+    let catfish_dir = format!("{}/catfish/", homedir);
+    let history_file = format!("{}history.txt", catfish_dir);
     // create variable prevpath for "cd -"
     let mut prevpath = env::current_dir().unwrap();
     // check if history Directory exist if not create it
-    if Path::new(&history_dir).exists() == false {
-        _ = fs::create_dir(&history_dir);
+    if Path::new(&catfish_dir).exists() == false {
+        _ = fs::create_dir(&catfish_dir);
     }
+
+    // TOML STUFF
+    // ---START---
+
+    use std::env;
+
+    let args: Vec<String> = env::args().collect();
+    use std::fs::File;
+    let config: AppConfig;
+    let mut config_toml = format!("{}config.toml", catfish_dir);
+    if args.contains(&"dev".to_string()) {
+        config_toml = format!("config.toml");
+        println!("test");
+    }
+    if Path::new(&config_toml).exists() == true {
+        let content = std::fs::read_to_string("config.toml").unwrap();
+        config = toml::from_str(&content).unwrap();
+    } else {
+        config = AppConfig {
+            prompt: PromptConfig {
+                home_symbol: '⛩',
+                prompt_symbol: "ᓚᘏᗢ".to_string(),
+            },
+            fuctions: None,
+        };
+        use std::io::Write;
+        let mut file = File::create(&config_toml).expect("Failed to create file");
+        let toml_string = toml::to_string(&config).expect("Failed to serialize config");
+        file.write_all(toml_string.as_bytes())
+            .expect("Failed to write to file");
+        _ = fs::create_dir(&catfish_dir);
+    }
+    // ---END---
     // create instanze of Context and CommentCompleter from the "redox_liner" create
     let mut con = Context::new();
     let mut completer = CommentCompleter { inner: None };
@@ -106,7 +161,8 @@ fn main() {
 
         // replace the home path with a symbol
         if curpath.starts_with(homedir) {
-            curpath = curpath.replace(homedir, "⛩"); //ᗢ ⛩ λ | ᓚᘏᗢ
+            //curpath = curpath.replace(homedir, "⛩"); //ᗢ ⛩ λ | ᓚᘏᗢ
+            curpath = curpath.replace(homedir, &config.prompt.home_symbol.to_string()); //ᗢ ⛩ λ | ᓚᘏᗢ
         }
 
         // configure the upper prompt line
@@ -118,7 +174,11 @@ fn main() {
         );
 
         // configure the Prompt
-        let prompttext = "\x1b[95m╰\x1b[0m\x1b[26mᓚᘏᗢ \x1b[0m"; //╰ᓚᘏᗢ-> | ╰ᓚᘏᗢ | ╰ᓚᘏᗢ ⛩ (\x1b[91m \x1b[0m)
+        //let prompttext = "\x1b[95m╰\x1b[0m\x1b[26mᓚᘏᗢ \x1b[0m"; //╰ᓚᘏᗢ-> | ╰ᓚᘏᗢ | ╰ᓚᘏᗢ ⛩ (\x1b[91m \x1b[0m)
+        let prompttext = format!(
+            "\x1b[95m╰\x1b[0m\x1b[26m{} \x1b[0m",
+            &config.prompt.prompt_symbol
+        );
 
         // make the prompt with all funktions and reading
         let res = con.read_line(
