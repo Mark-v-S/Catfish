@@ -106,6 +106,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Use crossterm directly for one-off terminal setup before reedline takes over
     execute!(stdout(), SetCursorStyle::BlinkingBar)?;
 
+    let mut prevpath = env::current_dir().unwrap();
     // Set up custom keybindings via reedline's API
     let mut keybindings = default_emacs_keybindings();
     keybindings.add_binding(
@@ -349,3 +350,19 @@ fn buildin_echo(path: &str, content: String, append: bool, replace: bool) {
             .expect("Failed to append to file");
     }
 }
+
+fn cd(args: &[&str], oldpath: &str) {
+    let mut path = ".";
+
+    for arg in args {
+        match *arg {
+            "-" => path = oldpath,
+            ".." => path = path,
+            //other if other.starts_with('-') => eprintln!("ls: unknown flag {other}"),
+            other => path = other,
+        }
+    }
+    buildin_cd(path);
+}
+
+fn buildin_cd(path: &str) {}
