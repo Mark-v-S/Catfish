@@ -1,10 +1,43 @@
 use crossterm::style::Stylize;
+use dirs::home_dir;
 use std::{
+    env::{current_dir, set_current_dir},
     fs::{File, OpenOptions},
     io::Write,
+    path::PathBuf,
 };
 
 use std::fs;
+
+pub struct BuildinCMD {
+    prevpath: PathBuf,
+}
+
+impl BuildinCMD {
+    pub fn new(curdir: PathBuf) -> Self {
+        Self { prevpath: curdir }
+    }
+    pub fn cd(&mut self, args: &[&str]) {
+        let prevpath = self.prevpath.clone();
+        if args.iter().count() > 1 {
+            println!("Too many args for cd command");
+            return;
+        }
+        let new_dir = match args.first() {
+            None => home_dir().unwrap().to_str().unwrap().to_owned(),
+            Some(&"~") => home_dir().unwrap().to_str().unwrap().to_owned(),
+            Some(&"-") => prevpath.clone().to_str().unwrap().to_owned(),
+            Some(other) => other.to_string(),
+        };
+        if new_dir == current_dir().unwrap().to_str().unwrap().to_owned() {
+            return;
+        }
+        self.prevpath = current_dir().unwrap();
+        if let Err(e) = set_current_dir(new_dir) {
+            eprintln!("{}", e);
+        }
+    }
+}
 
 pub fn ls(args: &[&str]) {
     let mut show_hidden = false;

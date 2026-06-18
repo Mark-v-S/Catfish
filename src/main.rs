@@ -8,16 +8,16 @@ use reedline::{
     Emacs, KeyCode, KeyModifiers, Prompt, PromptEditMode, PromptHistorySearch,
     PromptHistorySearchStatus, Reedline, ReedlineEvent, Signal, default_emacs_keybindings,
 };
-use std::io::stdout;
 use std::{
     borrow::Cow,
     env::{self, home_dir},
 };
+use std::{env::current_dir, io::stdout};
 
 use std::process::Command;
 //use walkdir::WalkDir;
 mod buildin_commands;
-use crate::buildin_commands::{cat, echo, ls};
+use crate::buildin_commands::{BuildinCMD, cat, echo, ls};
 
 fn execute_command(input: &str) {
     let mut parts = input.trim().split_whitespace();
@@ -119,6 +119,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let prompt = MyPrompt;
 
+    let curdir = current_dir().unwrap();
+    let mut buildin_cmds = BuildinCMD::new(curdir);
     loop {
         let curent_path = env::current_dir().unwrap().to_str().unwrap().to_owned();
         match line_editor.read_line(&prompt) {
@@ -137,6 +139,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "ls" => ls(&args),
                     // work with fieles //
                     "cat" => cat(&args),
+                    "cd" => buildin_cmds.cd(&args),
                     "exit" | "quit" => break,
                     "" => {}
                     _ => execute_command(input),
