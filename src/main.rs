@@ -114,8 +114,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ReedlineEvent::ExecuteHostCommand("clear".into()), // or handle in match below
     );
 
+    use reedline::{FileBackedHistory, Reedline};
+
+    let history = Box::new(
+        FileBackedHistory::with_file(100, "history.txt".into())
+            .expect("Error configuring history with file"),
+    );
+
     let edit_mode = Box::new(Emacs::new(keybindings));
-    let mut line_editor = Reedline::create().with_edit_mode(edit_mode);
+    let mut line_editor = Reedline::create()
+        .with_edit_mode(edit_mode)
+        .with_history(history);
 
     let prompt = MyPrompt;
 
