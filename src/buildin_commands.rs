@@ -27,7 +27,13 @@ impl BuildinCMD {
             None => home_dir().unwrap().to_str().unwrap().to_owned(),
             Some(&"~") => home_dir().unwrap().to_str().unwrap().to_owned(),
             Some(&"-") => prevpath.clone().to_str().unwrap().to_owned(),
-            Some(other) => other.to_string(),
+            Some(other) => {
+                if other.contains("~") {
+                    other.replace("~", home_dir().unwrap().to_str().unwrap())
+                } else {
+                    other.to_string()
+                }
+            }
         };
         if new_dir == current_dir().unwrap().to_str().unwrap().to_owned() {
             return;
