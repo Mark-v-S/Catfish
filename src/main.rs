@@ -103,7 +103,8 @@ impl Prompt for MyPrompt {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Use crossterm directly for one-off terminal setup before reedline takes over
-    execute!(stdout(), SetCursorStyle::BlinkingBar)?;
+    //execute!(stdout(), SetCursorStyle::BlinkingBar)?;
+    execute!(stdout(), SetCursorStyle::BlinkingUnderScore)?;
 
     //let mut prevpath = env::current_dir().unwrap();
     // Set up custom keybindings via reedline's API
@@ -111,7 +112,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     keybindings.add_binding(
         KeyModifiers::CONTROL,
         KeyCode::Char('l'),
-        ReedlineEvent::ExecuteHostCommand("clear".into()), // or handle in match below
+        //ReedlineEvent::ExecuteHostCommand("clear".into()), // or handle in match below
+        ReedlineEvent::ClearScreen, // or handle in match below
     );
 
     use reedline::{FileBackedHistory, Reedline};
