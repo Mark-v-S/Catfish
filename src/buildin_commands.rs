@@ -1,9 +1,11 @@
-use crossterm::style::Stylize;
+use chrono::{Datelike, Month, Timelike};
+use crossterm::style::{StyledContent, Stylize};
 use dirs::home_dir;
 use std::{
     env::{current_dir, set_current_dir},
     fs::{File, OpenOptions},
     io::Write,
+    //os::unix::fs::PermissionsExt,
     path::PathBuf,
 };
 
@@ -75,19 +77,77 @@ fn buildin_ls(path: &str, show_hidden: bool) {
         let Ok(file_type) = entry.file_type() else {
             continue;
         };
-        let name = entry.file_name().to_string_lossy().to_string();
+        let mut name = entry.file_name().to_string_lossy().to_string();
+        let test00 = entry.metadata().unwrap().accessed();
+        let test01 = entry.metadata().unwrap().created();
+        let test1 = entry.metadata().unwrap().modified().unwrap();
+        let permissions = entry.metadata().unwrap().permissions();
+        let test3 = entry.metadata().unwrap();
+        let len = entry.metadata().unwrap().len();
+        //println!("{:?}", test00);
+        //println!("{:?}", test01);
+        //println!("{:?}", test1);
+        //println!("{:?}", permissions);
+        //println!("{:?}", test3);
 
         if !show_hidden && name.starts_with('.') {
             continue;
         }
+        use crossterm::style::Stylize;
 
+        let sname: StyledContent<String>;
         if file_type.is_dir() {
-            print!("{}/   ", name.blue());
+            name = format!("{}/", name);
+            sname = name.blue();
         } else if file_type.is_file() {
-            print!("{}    ", name);
+            sname = name.bold();
         } else if file_type.is_symlink() {
-            print!("{}@   ", name.red());
+            name = format!("{}@", name);
+            sname = name.red();
+        } else {
+            sname = name.bold();
         }
+        #[cfg(unix)]
+        {
+            use chrono::{DateTime, Utc};
+            use std::os::unix::fs::PermissionsExt;
+            let datetime: DateTime<Utc> = test1.into();
+            println!(
+                "{:<5} {:>10} {}  {}    ",
+                format_permissions(permissions.mode()),
+                len,
+                datetime.format("%d. %b %H:%M").to_string(),
+                sname
+            );
+        }
+
+        #[cfg(windows)]
+        {
+            use chrono::{DateTime, Utc};
+            let datetime: DateTime<Utc> = test1.into();
+            println!(
+                /*"{:<5?}  */ "{:>10} {}  {}    ",
+                //permissions,
+                len,
+                datetime.format("%d. %b %H:%M").to_string(),
+                //datetime.day(),
+                //datetime.format("%b").to_string(),
+                //Month::try_from(datetime.month() as u8).unwrap().name(),
+                //datetime.month(),
+                //datetime.time().hour(),
+                //datetime.time().minute(),
+                sname
+            );
+        }
+
+        /*
+        if file_type.is_dir() {
+            println!("{:?}  {}/   ", permissions, sname);
+        } else if file_type.is_file() {
+            println!("{:?}  {}    ", permissions, sname);
+        } else if file_type.is_symlink() {
+            print!("{}@   ", sname);
+        }*/
     }
     println!();
 }
@@ -230,3 +290,18 @@ fn cd(args: &[&str], oldpath: &str) {
 
 fn buildin_cd(path: &str) {}
 */
+
+#[cfg(unix)]
+fn format_permissions(mode: u32) -> String {
+    let chars = ['x', 'w', 'r'];
+    let mut result = String::with_capacity(9);
+
+    for i in (0..3).rev() {
+        let bits = (mode >> (i * 3)) & 0b111;
+        result.push(if bits & 0b100 != 0 { 'r' } else { '-' });
+        result.push(if bits & 0b010 != 0 { 'w' } else { '-' });
+        result.push(if bits & 0b001 != 0 { 'x' } else { '-' });
+    }
+
+    result
+}

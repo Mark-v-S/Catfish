@@ -6,7 +6,7 @@ use crossterm::{
 };
 use reedline::{
     Emacs, KeyCode, KeyModifiers, Prompt, PromptEditMode, PromptHistorySearch,
-    PromptHistorySearchStatus, Reedline, ReedlineEvent, Signal, default_emacs_keybindings,
+    PromptHistorySearchStatus, ReedlineEvent, Signal, default_emacs_keybindings,
 };
 use std::{
     borrow::Cow,
@@ -147,12 +147,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "pwd" => println!("{}", curent_path),
                     // give out curent input //
                     "echo" => echo(&args),
+                    // list content of path //
                     "ls" => ls(&args),
                     // work with fieles //
                     "cat" => cat(&args),
+                    // change current path //
                     "cd" => buildin_cmds.cd(&args),
+                    // exit shell //
                     "exit" | "quit" => break,
+                    // du nothing and dont break //
                     "" => {}
+                    // execute comand on system //
                     _ => execute_command(input),
                 }
             }
