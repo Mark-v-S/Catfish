@@ -79,12 +79,13 @@ fn buildin_ls(path: &str, show_hidden: bool) {
             continue;
         };
         let mut name = entry.file_name().to_string_lossy().to_string();
-        let test00 = entry.metadata().unwrap().accessed();
-        let test01 = entry.metadata().unwrap().created();
-        let test1 = entry.metadata().unwrap().modified().unwrap();
+        //let accessed = entry.metadata().unwrap().accessed();
+        //let created = entry.metadata().unwrap().created();
+        let modified = entry.metadata().unwrap().modified().unwrap();
         let permissions = entry.metadata().unwrap().permissions();
-        let test3 = entry.metadata().unwrap();
         let len = entry.metadata().unwrap().len();
+        let datetime: DateTime<Utc> = modified.into();
+        let sname: StyledContent<String>;
         //println!("{:?}", test00);
         //println!("{:?}", test01);
         //println!("{:?}", test1);
@@ -94,9 +95,7 @@ fn buildin_ls(path: &str, show_hidden: bool) {
         if !show_hidden && name.starts_with('.') {
             continue;
         }
-        use crossterm::style::Stylize;
 
-        let sname: StyledContent<String>;
         if file_type.is_dir() {
             name = format!("{}/", name);
             sname = name.blue();
@@ -108,7 +107,6 @@ fn buildin_ls(path: &str, show_hidden: bool) {
         } else {
             sname = name.bold();
         }
-        let datetime: DateTime<Utc> = test1.into();
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -156,7 +154,7 @@ fn buildin_ls(path: &str, show_hidden: bool) {
             print!("{}@   ", sname);
         }*/
     }
-    println!();
+    //println!();
 }
 
 pub fn cat(args: &[&str]) {
