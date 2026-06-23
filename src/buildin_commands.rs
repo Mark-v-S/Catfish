@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use chrono::{Datelike, Month, Timelike};
 use crossterm::style::{StyledContent, Stylize};
 use dirs::home_dir;
@@ -107,11 +108,10 @@ fn buildin_ls(path: &str, show_hidden: bool) {
         } else {
             sname = name.bold();
         }
+        let datetime: DateTime<Utc> = test1.into();
         #[cfg(unix)]
         {
-            use chrono::{DateTime, Utc};
             use std::os::unix::fs::PermissionsExt;
-            let datetime: DateTime<Utc> = test1.into();
             println!(
                 "{:<5} {:>10} {}  {}    ",
                 format_permissions(permissions.mode()),
@@ -123,24 +123,31 @@ fn buildin_ls(path: &str, show_hidden: bool) {
 
         #[cfg(windows)]
         {
-            use chrono::{DateTime, Utc};
-            let datetime: DateTime<Utc> = test1.into();
             println!(
                 /*"{:<5?}  */ "{:>10} {}  {}    ",
                 //permissions,
                 len,
                 datetime.format("%d. %b %H:%M").to_string(),
-                //datetime.day(),
-                //datetime.format("%b").to_string(),
-                //Month::try_from(datetime.month() as u8).unwrap().name(),
-                //datetime.month(),
-                //datetime.time().hour(),
-                //datetime.time().minute(),
                 sname
             );
         }
 
         /*
+        use chrono::{DateTime, Utc};
+        let datetime: DateTime<Utc> = test1.into();
+        println!(
+            /*"{:<5?}  */ "{:>10} {}  {}    ",
+            //permissions,
+            len,
+            datetime.format("%d. %b %H:%M").to_string(),
+            //datetime.day(),
+            //datetime.format("%b").to_string(),
+            //Month::try_from(datetime.month() as u8).unwrap().name(),
+            //datetime.month(),
+            //datetime.time().hour(),
+            //datetime.time().minute(),
+            sname
+        );
         if file_type.is_dir() {
             println!("{:?}  {}/   ", permissions, sname);
         } else if file_type.is_file() {
