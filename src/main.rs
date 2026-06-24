@@ -17,7 +17,7 @@ use std::{env::current_dir, io::stdout};
 use std::process::Command;
 //use walkdir::WalkDir;
 mod buildin_commands;
-use crate::buildin_commands::{BuildinCMD, cat, echo, ls, mkdir, touch};
+use crate::buildin_commands::{BuildinCMD, cat, echo, ls, mkdir, rm, touch};
 
 fn execute_command(input: &str) {
     let mut parts = input.trim().split_whitespace();
@@ -157,6 +157,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "touch" => touch(&args),
                     // mkdir comand //
                     "mkdir" => mkdir(&args),
+                    // rm comand //
+                    "rm" => rm(&args),
                     // exit shell //
                     "exit" | "quit" => break,
                     // du nothing and dont break //

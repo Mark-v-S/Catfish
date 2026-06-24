@@ -334,6 +334,40 @@ fn buildin_mkdir(files: Vec<&str>, nested: bool) {
     }
 }
 
+pub fn rm(args: &[&str]) {
+    let mut files: Vec<&str> = Vec::new();
+
+    for arg in args {
+        match *arg {
+            //"-n" => numberedlines = true,
+            //"-b" => numberedlines_ne = true,
+            other if other.starts_with('-') => eprintln!("ls: unknown flag {other}"),
+            other => {
+                files.push(other);
+            }
+        }
+    }
+    buildin_rm(files);
+}
+
+fn buildin_rm(files: Vec<&str>) {
+    for file in files {
+        let path = Path::new(file);
+        match fs::remove_file(path) {
+            Ok(_) => println!("File deleted successfully."),
+            Err(e) => println!("Error deleting file: {}", e),
+        }
+        /*
+        if path.exists() {
+            use filetime::FileTime;
+            let time = FileTime::now();
+            set_file_times(file, time, time).expect("faild to file time");
+        } else {
+            let _file = File::create(file).expect("Failed to create file");
+        }*/
+    }
+}
+
 /*
 fn cd(args: &[&str], oldpath: &str) {
     let mut path = ".";
