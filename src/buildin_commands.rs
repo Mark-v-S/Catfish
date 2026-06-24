@@ -2,15 +2,16 @@ use chrono::{DateTime, Utc};
 use chrono::{Datelike, Month, Timelike};
 use crossterm::style::{StyledContent, Stylize};
 use dirs::home_dir;
+use filetime::set_file_times;
+use std::fs;
+use std::path::Path;
+use std::time::SystemTime;
 use std::{
     env::{current_dir, set_current_dir},
     fs::{File, OpenOptions},
     io::Write,
-    //os::unix::fs::PermissionsExt,
     path::PathBuf,
 };
-
-use std::fs;
 
 pub struct BuildinCMD {
     prevpath: PathBuf,
@@ -273,6 +274,63 @@ fn buildin_echo(path: &str, content: String, append: bool, replace: bool) {
             .expect("Failed to open file");
         file.write_all(content.as_bytes())
             .expect("Failed to append to file");
+    }
+}
+
+pub fn touch(args: &[&str]) {
+    let mut files: Vec<&str> = Vec::new();
+
+    for arg in args {
+        match *arg {
+            //"-n" => numberedlines = true,
+            //"-b" => numberedlines_ne = true,
+            other if other.starts_with('-') => eprintln!("ls: unknown flag {other}"),
+            other => {
+                files.push(other);
+            }
+        }
+    }
+    buildin_touch(files);
+}
+
+fn buildin_touch(files: Vec<&str>) {
+    for file in files {
+        let path = Path::new(file);
+        if path.exists() {
+            use filetime::FileTime;
+            let time = FileTime::now();
+            set_file_times(file, time, time).expect("faild to file time");
+        } else {
+            let _file = File::create(file).expect("Failed to create file");
+        }
+    }
+}
+
+pub fn mkdir(args: &[&str]) {
+    let mut files: Vec<&str> = Vec::new();
+    let mut nested = false;
+
+    for arg in args {
+        match *arg {
+            //"-n" => numberedlines = true,
+            "-p" => nested = true,
+            other if other.starts_with('-') => eprintln!("ls: unknown flag {other}"),
+            other => {
+                files.push(other);
+            }
+        }
+    }
+    buildin_mkdir(files, nested);
+}
+
+fn buildin_mkdir(files: Vec<&str>, nested: bool) {
+    for file in files {
+        let path = Path::new(file);
+        if nested {
+            fs::create_dir_all(path).expect("faild to create nested folders");
+        } else {
+            fs::create_dir(path).expect("faild to create folder");
+        }
     }
 }
 
