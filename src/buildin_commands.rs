@@ -51,20 +51,21 @@ impl BuildinCMD {
 
 pub fn ls(args: &[&str]) {
     let mut show_hidden = false;
+    let mut long_format = false;
     let mut path = ".";
 
     for arg in args {
         match *arg {
             "-a" => show_hidden = true,
-            //"-l" => long_format = true,
+            "-l" => long_format = true,
             other if other.starts_with('-') => eprintln!("ls: unknown flag {other}"),
             other => path = other,
         }
     }
-    buildin_ls(path, show_hidden);
+    buildin_ls(path, show_hidden, long_format);
 }
 
-fn buildin_ls(path: &str, show_hidden: bool) {
+fn buildin_ls(path: &str, show_hidden: bool, long_format: bool) {
     let mut entries: Vec<_> = match std::fs::read_dir(path) {
         Ok(rd) => rd.filter_map(|e| e.ok()).collect(),
         Err(e) => {
@@ -80,18 +81,10 @@ fn buildin_ls(path: &str, show_hidden: bool) {
             continue;
         };
         let mut name = entry.file_name().to_string_lossy().to_string();
-        //let accessed = entry.metadata().unwrap().accessed();
-        //let created = entry.metadata().unwrap().created();
         let modified = entry.metadata().unwrap().modified().unwrap();
-        let permissions = entry.metadata().unwrap().permissions();
         let len = entry.metadata().unwrap().len();
         let datetime: DateTime<Utc> = modified.into();
         let sname: StyledContent<String>;
-        //println!("{:?}", test00);
-        //println!("{:?}", test01);
-        //println!("{:?}", test1);
-        //println!("{:?}", permissions);
-        //println!("{:?}", test3);
 
         if !show_hidden && name.starts_with('.') {
             continue;
@@ -108,54 +101,48 @@ fn buildin_ls(path: &str, show_hidden: bool) {
         } else {
             sname = name.bold();
         }
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            println!(
-                "{:<5} {:>10} {}  {}    ",
-                format_permissions(permissions.mode()),
-                len,
-                datetime.format("%d. %b %H:%M").to_string(),
-                sname
-            );
-        }
 
-        #[cfg(windows)]
-        {
-            println!(
-                /*"{:<5?}  */ "{:>10} {}  {}    ",
-                //permissions,
-                len,
-                datetime.format("%d. %b %H:%M").to_string(),
-                sname
-            );
+        if !long_format {
+            print!("{}  ", sname);
         }
+        if long_format {
+            #[cfg(unix)]
+            {
+                let permissions = entry.metadata().unwrap().permissions();
+                use std::os::unix::fs::PermissionsExt;
+                println!(
+                    "{:<5} {:>10} {}  {}    ",
+                    format_permissions(permissions.mode()),
+                    len,
+                    datetime.format("%d. %b %H:%M").to_string(),
+                    sname
+                );
+            }
 
-        /*
-        use chrono::{DateTime, Utc};
-        let datetime: DateTime<Utc> = test1.into();
-        println!(
-            /*"{:<5?}  */ "{:>10} {}  {}    ",
-            //permissions,
-            len,
-            datetime.format("%d. %b %H:%M").to_string(),
-            //datetime.day(),
-            //datetime.format("%b").to_string(),
-            //Month::try_from(datetime.month() as u8).unwrap().name(),
-            //datetime.month(),
-            //datetime.time().hour(),
-            //datetime.time().minute(),
-            sname
-        );
-        if file_type.is_dir() {
-            println!("{:?}  {}/   ", permissions, sname);
-        } else if file_type.is_file() {
-            println!("{:?}  {}    ", permissions, sname);
-        } else if file_type.is_symlink() {
-            print!("{}@   ", sname);
-        }*/
+            #[cfg(windows)]
+            {
+                use std::os::windows::fs::MetadataExt;
+
+                let attrs = entry.metadata().unwrap().file_attributes();
+                let type_char = if file_type.is_dir() { 'd' } else { '-' };
+                let a = if attrs & 0x20 != 0 { 'a' } else { '-' }; // archive
+                let r = if attrs & 0x1 != 0 { 'r' } else { '-' }; // readonly
+                let h = if attrs & 0x2 != 0 { 'h' } else { '-' }; // hidden
+                let s = if attrs & 0x4 != 0 { 's' } else { '-' }; // system
+                let l = if file_type.is_symlink() { 'l' } else { '-' };
+
+                let file_attribues = format!("{type_char}{a}{r}{h}{s}{l}");
+                println!(
+                    "{:<5} {:>10} {}  {}    ",
+                    file_attribues,
+                    len,
+                    datetime.format("%d. %b %H:%M").to_string(),
+                    sname
+                );
+            }
+        }
     }
-    //println!();
+    println!();
 }
 
 pub fn cat(args: &[&str]) {
