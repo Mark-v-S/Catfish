@@ -1,16 +1,13 @@
 use chrono::{DateTime, Utc};
-use chrono::{Datelike, Month, Timelike};
 use crossterm::style::{StyledContent, Stylize};
 use dirs::home_dir;
 use filetime::set_file_times;
-use std::fs;
-use std::path::Path;
-use std::time::SystemTime;
 use std::{
     env::{current_dir, set_current_dir},
+    fs,
     fs::{File, OpenOptions},
     io::Write,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 pub struct BuildinCMD {
@@ -76,6 +73,38 @@ fn buildin_ls(path: &str, show_hidden: bool, long_format: bool) {
 
     entries.sort_by_key(|e| e.file_name());
 
+    if !show_hidden {
+        entries = entries
+            .into_iter()
+            .filter(|e| !e.file_name().to_string_lossy().starts_with('.'))
+            .collect();
+        #[cfg(windows)]
+        {
+            entries = entries
+                .into_iter()
+                .filter(|e| {
+                    !e.file_name()
+                        .to_string_lossy()
+                        .to_lowercase()
+                        .starts_with("ntuser")
+                })
+                .collect();
+        }
+    }
+
+    use crossterm::terminal::size;
+    let (terminal_width, _) = size().unwrap_or((80, 24));
+    let max_len = entries
+        .iter()
+        .map(|e| e.file_name().to_string_lossy().len() + 1)
+        .max()
+        .unwrap_or(0);
+    let col_width = max_len + 2;
+    let cols = ((terminal_width as usize) / col_width).max(1);
+    let mut col = 0;
+    let entrys_count = entries.iter().count();
+
+    // grid }
     for entry in entries {
         let Ok(file_type) = entry.file_type() else {
             continue;
@@ -86,24 +115,37 @@ fn buildin_ls(path: &str, show_hidden: bool, long_format: bool) {
         let datetime: DateTime<Utc> = modified.into();
         let sname: StyledContent<String>;
 
-        if !show_hidden && name.starts_with('.') {
-            continue;
+        if file_type.is_dir() {
+            name = format!("{}/", name);
+        } else if file_type.is_symlink() {
+            name = format!("{}@", name);
+        }
+
+        if !long_format {
+            if entrys_count > cols {
+                name = format!("{:<width$}", name, width = col_width);
+            } else {
+                name = format!("{}  ", name);
+            }
         }
 
         if file_type.is_dir() {
-            name = format!("{}/", name);
             sname = name.blue();
         } else if file_type.is_file() {
             sname = name.bold();
         } else if file_type.is_symlink() {
-            name = format!("{}@", name);
             sname = name.red();
         } else {
             sname = name.bold();
         }
 
         if !long_format {
-            print!("{}  ", sname);
+            print!("{}", sname);
+            col += 1;
+            if col >= cols {
+                println!();
+                col = 0;
+            }
         }
         if long_format {
             #[cfg(unix)]

@@ -19,6 +19,37 @@ use std::process::Command;
 mod buildin_commands;
 use crate::buildin_commands::{BuildinCMD, cat, echo, ls, mkdir, rm, touch};
 
+/// git-stuff
+fn get_git_info() -> Option<String> {
+    // get current branch
+    let branch = Command::new("git")
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .output()
+        .ok()?;
+
+    if !branch.status.success() {
+        return None; // not a git repo
+    }
+
+    let branch = String::from_utf8(branch.stdout).ok()?;
+    let branch = branch.trim();
+
+    // check if there are uncommited changes
+    let dirty = Command::new("git")
+        .args(["status", "--porcelain"])
+        .output()
+        .ok()?;
+
+    let is_dirty = !dirty.stdout.is_empty();
+
+    if is_dirty {
+        Some(format!(" ({branch}*) "))
+    } else {
+        Some(format!(" ({branch}) "))
+    }
+}
+///
+
 fn execute_command(input: &str) {
     let mut parts = input.trim().split_whitespace();
 
@@ -68,8 +99,9 @@ impl Prompt for MyPrompt {
         let dir = get_curent_path().dark_magenta();
         let bottom_arrow = "╰╴".magenta();
         let symbol = "ᓚᘏᗢ".dark_grey();
+        let git = get_git_info().unwrap_or_default();
         Cow::Owned(format!(
-            "{top_arrow}{usr} on {host} in {dir}\n{bottom_arrow}{symbol} "
+            "{top_arrow}{usr} on {host} in {dir}{git}\n{bottom_arrow}{symbol} "
         ))
     }
 
