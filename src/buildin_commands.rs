@@ -1,13 +1,14 @@
-use crossterm::style::Stylize;
+use chrono::{DateTime, Utc};
+use crossterm::style::{StyledContent, Stylize};
 use dirs::home_dir;
+use filetime::set_file_times;
 use std::{
     env::{current_dir, set_current_dir},
+    fs,
     fs::{File, OpenOptions},
     io::Write,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
-
-use std::fs;
 
 pub struct BuildinCMD {
     prevpath: PathBuf,
@@ -47,20 +48,21 @@ impl BuildinCMD {
 
 pub fn ls(args: &[&str]) {
     let mut show_hidden = false;
+    let mut long_format = false;
     let mut path = ".";
 
     for arg in args {
         match *arg {
             "-a" => show_hidden = true,
-            //"-l" => long_format = true,
+            "-l" => long_format = true,
             other if other.starts_with('-') => eprintln!("ls: unknown flag {other}"),
             other => path = other,
         }
     }
-    buildin_ls(path, show_hidden);
+    buildin_ls(path, show_hidden, long_format);
 }
 
-fn buildin_ls(path: &str, show_hidden: bool) {
+fn buildin_ls(path: &str, show_hidden: bool, long_format: bool) {
     let mut entries: Vec<_> = match std::fs::read_dir(path) {
         Ok(rd) => rd.filter_map(|e| e.ok()).collect(),
         Err(e) => {
@@ -71,22 +73,115 @@ fn buildin_ls(path: &str, show_hidden: bool) {
 
     entries.sort_by_key(|e| e.file_name());
 
+    if !show_hidden {
+        entries = entries
+            .into_iter()
+            .filter(|e| !e.file_name().to_string_lossy().starts_with('.'))
+            .collect();
+        #[cfg(windows)]
+        {
+            entries = entries
+                .into_iter()
+                .filter(|e| {
+                    !e.file_name()
+                        .to_string_lossy()
+                        .to_lowercase()
+                        .starts_with("ntuser")
+                })
+                .collect();
+        }
+    }
+
+    use crossterm::terminal::size;
+    let (terminal_width, _) = size().unwrap_or((80, 24));
+    let max_len = entries
+        .iter()
+        .map(|e| e.file_name().to_string_lossy().len() + 1)
+        .max()
+        .unwrap_or(0);
+    let col_width = max_len + 2;
+    let cols = ((terminal_width as usize) / col_width).max(1);
+    let mut col = 0;
+    let entrys_count = entries.iter().count();
+
+    // grid }
     for entry in entries {
         let Ok(file_type) = entry.file_type() else {
             continue;
         };
-        let name = entry.file_name().to_string_lossy().to_string();
+        let mut name = entry.file_name().to_string_lossy().to_string();
+        let modified = entry.metadata().unwrap().modified().unwrap();
+        let len = entry.metadata().unwrap().len();
+        let datetime: DateTime<Utc> = modified.into();
+        let sname: StyledContent<String>;
 
-        if !show_hidden && name.starts_with('.') {
-            continue;
+        if file_type.is_dir() {
+            name = format!("{}/", name);
+        } else if file_type.is_symlink() {
+            name = format!("{}@", name);
+        }
+
+        if !long_format {
+            if entrys_count > cols {
+                name = format!("{:<width$}", name, width = col_width);
+            } else {
+                name = format!("{}  ", name);
+            }
         }
 
         if file_type.is_dir() {
-            print!("{}/   ", name.blue());
+            sname = name.blue();
         } else if file_type.is_file() {
-            print!("{}    ", name);
+            sname = name.bold();
         } else if file_type.is_symlink() {
-            print!("{}@   ", name.red());
+            sname = name.red();
+        } else {
+            sname = name.bold();
+        }
+
+        if !long_format {
+            print!("{}", sname);
+            col += 1;
+            if col >= cols {
+                println!();
+                col = 0;
+            }
+        }
+        if long_format {
+            #[cfg(unix)]
+            {
+                let permissions = entry.metadata().unwrap().permissions();
+                use std::os::unix::fs::PermissionsExt;
+                println!(
+                    "{:<5} {:>10} {}  {}    ",
+                    format_permissions(permissions.mode()),
+                    len,
+                    datetime.format("%d. %b %H:%M").to_string(),
+                    sname
+                );
+            }
+
+            #[cfg(windows)]
+            {
+                use std::os::windows::fs::MetadataExt;
+
+                let attrs = entry.metadata().unwrap().file_attributes();
+                let type_char = if file_type.is_dir() { 'd' } else { '-' };
+                let a = if attrs & 0x20 != 0 { 'a' } else { '-' }; // archive
+                let r = if attrs & 0x1 != 0 { 'r' } else { '-' }; // readonly
+                let h = if attrs & 0x2 != 0 { 'h' } else { '-' }; // hidden
+                let s = if attrs & 0x4 != 0 { 's' } else { '-' }; // system
+                let l = if file_type.is_symlink() { 'l' } else { '-' };
+
+                let file_attribues = format!("{type_char}{a}{r}{h}{s}{l}");
+                println!(
+                    "{:<5} {:>10} {}  {}    ",
+                    file_attribues,
+                    len,
+                    datetime.format("%d. %b %H:%M").to_string(),
+                    sname
+                );
+            }
         }
     }
     println!();
@@ -211,6 +306,97 @@ fn buildin_echo(path: &str, content: String, append: bool, replace: bool) {
     }
 }
 
+pub fn touch(args: &[&str]) {
+    let mut files: Vec<&str> = Vec::new();
+
+    for arg in args {
+        match *arg {
+            //"-n" => numberedlines = true,
+            //"-b" => numberedlines_ne = true,
+            other if other.starts_with('-') => eprintln!("ls: unknown flag {other}"),
+            other => {
+                files.push(other);
+            }
+        }
+    }
+    buildin_touch(files);
+}
+
+fn buildin_touch(files: Vec<&str>) {
+    for file in files {
+        let path = Path::new(file);
+        if path.exists() {
+            use filetime::FileTime;
+            let time = FileTime::now();
+            set_file_times(file, time, time).expect("faild to file time");
+        } else {
+            let _file = File::create(file).expect("Failed to create file");
+        }
+    }
+}
+
+pub fn mkdir(args: &[&str]) {
+    let mut files: Vec<&str> = Vec::new();
+    let mut nested = false;
+
+    for arg in args {
+        match *arg {
+            //"-n" => numberedlines = true,
+            "-p" => nested = true,
+            other if other.starts_with('-') => eprintln!("ls: unknown flag {other}"),
+            other => {
+                files.push(other);
+            }
+        }
+    }
+    buildin_mkdir(files, nested);
+}
+
+fn buildin_mkdir(files: Vec<&str>, nested: bool) {
+    for file in files {
+        let path = Path::new(file);
+        if nested {
+            fs::create_dir_all(path).expect("faild to create nested folders");
+        } else {
+            fs::create_dir(path).expect("faild to create folder");
+        }
+    }
+}
+
+pub fn rm(args: &[&str]) {
+    let mut files: Vec<&str> = Vec::new();
+
+    for arg in args {
+        match *arg {
+            //"-n" => numberedlines = true,
+            //"-b" => numberedlines_ne = true,
+            other if other.starts_with('-') => eprintln!("ls: unknown flag {other}"),
+            other => {
+                files.push(other);
+            }
+        }
+    }
+    buildin_rm(files);
+}
+
+fn buildin_rm(files: Vec<&str>) {
+    for file in files {
+        let path = Path::new(file);
+        match fs::remove_file(path) {
+            Ok(_) => println!("File deleted successfully."),
+            Err(e) => println!("Error deleting file: {}", e),
+        }
+        /*
+        if path.exists() {
+            use filetime::FileTime;
+            let time = FileTime::now();
+            set_file_times(file, time, time).expect("faild to file time");
+        } else {
+            let _file = File::create(file).expect("Failed to create file");
+        }*/
+    }
+}
+
 /*
 fn cd(args: &[&str], oldpath: &str) {
     let mut path = ".";
@@ -230,3 +416,18 @@ fn cd(args: &[&str], oldpath: &str) {
 
 fn buildin_cd(path: &str) {}
 */
+
+#[cfg(unix)]
+fn format_permissions(mode: u32) -> String {
+    let chars = ['x', 'w', 'r'];
+    let mut result = String::with_capacity(9);
+
+    for i in (0..3).rev() {
+        let bits = (mode >> (i * 3)) & 0b111;
+        result.push(if bits & 0b100 != 0 { 'r' } else { '-' });
+        result.push(if bits & 0b010 != 0 { 'w' } else { '-' });
+        result.push(if bits & 0b001 != 0 { 'x' } else { '-' });
+    }
+
+    result
+}

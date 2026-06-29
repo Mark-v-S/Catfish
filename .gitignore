@@ -1,2 +1,5 @@
 /target
 Cargo.lock
+history.txt
+config.toml
+src/buildin_commands copy.rs
