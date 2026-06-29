@@ -10,14 +10,32 @@ use reedline::{
 };
 use std::{
     borrow::Cow,
-    env::{self, home_dir},
+    env::{self, current_dir, home_dir},
+    fs,
+    io::stdout,
+    path::Path,
+    process::Command,
 };
-use std::{env::current_dir, io::stdout};
-
-use std::process::Command;
 //use walkdir::WalkDir;
 mod buildin_commands;
 use crate::buildin_commands::{BuildinCMD, cat, echo, ls, mkdir, rm, touch};
+
+/// TOML STUFF
+/// ---START---
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize, Serialize)]
+struct AppConfig {
+    prompt: MyPrompt,
+}
+
+#[derive(Debug, Deserialize, Serialize, Default)]
+struct PromptConfig {
+    home_symbol: char,
+    prompt_symbol: String,
+}
+
+/// ---TOML STUFF END---
 
 /// system commands ???
 // might be reworking that one for personal satifaction but should work
@@ -114,18 +132,28 @@ fn get_home_dir() -> String {
     homedir
 }
 
-fn get_curent_path() -> String {
+fn get_curent_path(home_symbol: String) -> String {
     let homedir = get_home_dir();
     let curent_path = env::current_dir().unwrap().to_str().unwrap().to_owned();
     if curent_path.starts_with(&homedir) {
-        curent_path.replace(&homedir, "⛩ ")
+        curent_path.replace(&homedir, &format!("{home_symbol} ").to_string())
     } else {
         curent_path.to_owned()
     }
 }
-
+//⛩
 // Custom prompt
-struct MyPrompt;
+//
+#[derive(Debug, Deserialize, Serialize, Default)]
+pub struct MyPrompt {
+    prompt_symbol: String,
+    home_symbol: String,
+    indicator: String,
+}
+
+/*
+ * the reading prompt config should be in the Prompt functions propably???
+ */
 
 impl Prompt for MyPrompt {
     fn render_prompt_left(&self) -> Cow<'_, str> {
@@ -136,9 +164,10 @@ impl Prompt for MyPrompt {
         let host = whoami::hostname()
             .unwrap_or_else(|_| "unknown".into())
             .cyan();
-        let dir = get_curent_path().dark_magenta();
+        let dir = get_curent_path(self.home_symbol.clone()).dark_magenta();
         let bottom_arrow = "╰╴".magenta();
-        let symbol = "ᓚᘏᗢ".dark_grey();
+        //let symbol = "ᓚᘏᗢ".dark_grey();
+        let symbol = self.prompt_symbol.clone().dark_grey();
         let git = get_git_info().unwrap_or_default();
         Cow::Owned(format!(
             "{top_arrow}{usr} on {host} in {dir}{git}\n{bottom_arrow}{symbol} "
@@ -150,7 +179,8 @@ impl Prompt for MyPrompt {
     }
 
     fn render_prompt_indicator(&self, _mode: PromptEditMode) -> Cow<'_, str> {
-        Cow::Borrowed("> ")
+        let indicator = self.indicator.to_string();
+        Cow::Owned(format!("{indicator} "))
     }
 
     fn render_prompt_multiline_indicator(&self) -> Cow<'_, str> {
@@ -174,6 +204,45 @@ impl Prompt for MyPrompt {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let catfish_dir = format!("{}/catfish/", get_home_dir());
+    let history_file = format!("{}history.txt", catfish_dir);
+    if Path::new(&catfish_dir).exists() == false {
+        _ = fs::create_dir(&catfish_dir);
+    }
+
+    // TOML STUFF
+    // ---START---
+
+    use std::env;
+
+    let args: Vec<String> = env::args().collect();
+    use std::fs::File;
+    let config: AppConfig;
+    let mut config_toml = format!("{}config.toml", catfish_dir);
+    if args.contains(&"dev".to_string()) {
+        config_toml = format!("config.toml");
+        println!("test");
+    }
+    if Path::new(&config_toml).exists() == true {
+        let content = std::fs::read_to_string(config_toml).unwrap();
+        config = toml::from_str(&content).unwrap();
+    } else {
+        config = AppConfig {
+            prompt: MyPrompt {
+                prompt_symbol: "ᓚᘏᗢ".to_string(),
+                home_symbol: "⛩".to_string(),
+                indicator: ">".to_string(),
+            },
+        };
+        use std::io::Write;
+        let mut file = File::create(&config_toml).expect("Failed to create file");
+        let toml_string = toml::to_string(&config).expect("Failed to serialize config");
+        file.write_all(toml_string.as_bytes())
+            .expect("Failed to write to file");
+        _ = fs::create_dir(&catfish_dir);
+    }
+    // ---END---
+
     // Use crossterm directly for one-off terminal setup before reedline takes over
     //execute!(stdout(), SetCursorStyle::BlinkingBar)?;
     execute!(stdout(), SetCursorStyle::BlinkingUnderScore)?;
@@ -192,19 +261,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     use reedline::{FileBackedHistory, Reedline};
 
     let history = Box::new(
-        FileBackedHistory::with_file(100, "history.txt".into())
+        FileBackedHistory::with_file(100, history_file.into())
             .expect("Error configuring history with file"),
     );
 
     let mut commands = vec![
-        "ls".into(),
-        "cd".into(),
-        "rm".into(),
-        "echo".into(),
-        "cat".into(),
-        "pwd".into(),
-        "exit".into(),
         "clear".into(),
+        "pwd".into(),
+        "echo".into(),
+        "ls".into(),
+        "cat".into(),
+        "cd".into(),
+        "touch".into(),
+        "mkdir".into(),
+        "rm".into(),
+        "exit".into(),
+        "quit".into(),
     ];
 
     commands.extend(get_path_commands());
@@ -236,7 +308,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_menu(ReedlineMenu::EngineCompleter(completion_menu))
         .with_hinter(Box::new(DefaultHinter::default()));
 
-    let prompt = MyPrompt;
+    // "ᓚᘏᗢ".to_string()
+    // "⛩".to_string()
+    let prompt = config.prompt;
+    /*
+    let prompt = MyPrompt::new(
+        config.prompt.prompt_symbol,
+        config.prompt.home_symbol.to_string(),
+        ">".to_string(),
+    );
+     */
 
     let curdir = current_dir().unwrap();
     let mut buildin_cmds = BuildinCMD::new(curdir);
@@ -297,22 +378,3 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-
-/*
-struct ls{
-    path: &'static str,
-    hidden: bool,
-}
-
-impl ls{
-    fn ls_currentpath(Self){
-
-    }
-}
-
-struct BuildinCommands;
-
-impl BuildinCommands {
-    fn ls(args: &[&str]){}
-}
-*/

@@ -397,26 +397,6 @@ fn buildin_rm(files: Vec<&str>) {
     }
 }
 
-/*
-fn cd(args: &[&str], oldpath: &str) {
-    let mut path = ".";
-
-    /*
-    for arg in args {
-        match *arg {
-            "-" => path = oldpath,
-            ".." => path = path,
-            //other if other.starts_with('-') => eprintln!("ls: unknown flag {other}"),
-            other => path = other,
-        }
-    }
-    */
-    buildin_cd(path);
-}
-
-fn buildin_cd(path: &str) {}
-*/
-
 #[cfg(unix)]
 fn format_permissions(mode: u32) -> String {
     let chars = ['x', 'w', 'r'];
