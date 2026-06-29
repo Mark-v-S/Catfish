@@ -5,7 +5,7 @@ use crossterm::{
     terminal::{Clear, ClearType},
 };
 use reedline::{
-    Emacs, KeyCode, KeyModifiers, Prompt, PromptEditMode, PromptHistorySearch,
+    Emacs, ExampleHighlighter, KeyCode, KeyModifiers, Prompt, PromptEditMode, PromptHistorySearch,
     PromptHistorySearchStatus, ReedlineEvent, Signal, default_emacs_keybindings,
 };
 use std::{
@@ -148,6 +148,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ReedlineEvent::ClearScreen, // or handle in match below
     );
 
+    use reedline::{ColumnarMenu, DefaultCompleter, DefaultHinter, MenuBuilder, ReedlineMenu};
     use reedline::{FileBackedHistory, Reedline};
 
     let history = Box::new(
@@ -155,10 +156,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .expect("Error configuring history with file"),
     );
 
+    let commands = vec![
+        "ls".into(),
+        "cd".into(),
+        "rm".into(),
+        "echo".into(),
+        "cat".into(),
+        "pwd".into(),
+        "exit".into(),
+        "clear".into(),
+    ];
+    let highlighter = Box::new(ExampleHighlighter::new(commands.clone()));
+
+    let completer = Box::new(DefaultCompleter::new_with_wordlen(commands.clone(), 2));
+    // Use the interactive menu to select options from the completer
+    let completion_menu = Box::new(ColumnarMenu::default().with_name("completion_menu"));
+    // Set up the required keybindings
+    //let mut keybindings = default_emacs_keybindings();
+    keybindings.add_binding(
+        KeyModifiers::NONE,
+        KeyCode::Tab,
+        ReedlineEvent::UntilFound(vec![
+            ReedlineEvent::Menu("completion_menu".to_string()),
+            ReedlineEvent::MenuNext,
+        ]),
+    );
+
     let edit_mode = Box::new(Emacs::new(keybindings));
     let mut line_editor = Reedline::create()
         .with_edit_mode(edit_mode)
-        .with_history(history);
+        .with_history(history)
+        .with_highlighter(highlighter)
+        .with_completer(completer)
+        .with_menu(ReedlineMenu::EngineCompleter(completion_menu))
+        .with_hinter(Box::new(DefaultHinter::default()));
 
     let prompt = MyPrompt;
 
