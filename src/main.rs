@@ -19,6 +19,46 @@ use std::process::Command;
 mod buildin_commands;
 use crate::buildin_commands::{BuildinCMD, cat, echo, ls, mkdir, rm, touch};
 
+/// system commands ???
+// might be reworking that one for personal satifaction but should work
+fn get_path_commands() -> Vec<String> {
+    let path = std::env::var("PATH").unwrap_or_default();
+
+    #[cfg(windows)]
+    let separator = ';';
+    #[cfg(not(windows))]
+    let separator = ':';
+
+    let mut commands = Vec::new();
+
+    for dir in path.split(separator) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            continue;
+        };
+        for entry in entries.filter_map(|e| e.ok()) {
+            // on windows check for .exe, on unix check executable permission
+            #[cfg(windows)]
+            if entry.path().extension().map_or(false, |e| e == "exe") {
+                if let Some(name) = entry.path().file_stem() {
+                    commands.push(name.to_string_lossy().to_string());
+                }
+            }
+            #[cfg(not(windows))]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                if let Ok(meta) = entry.metadata() {
+                    if meta.permissions().mode() & 0o111 != 0 {
+                        commands.push(entry.file_name().to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    commands
+}
+//
+
 /// git-stuff
 fn get_git_info() -> Option<String> {
     // get current branch
@@ -156,7 +196,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .expect("Error configuring history with file"),
     );
 
-    let commands = vec![
+    let mut commands = vec![
         "ls".into(),
         "cd".into(),
         "rm".into(),
@@ -166,6 +206,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "exit".into(),
         "clear".into(),
     ];
+
+    commands.extend(get_path_commands());
+    commands.sort();
+    commands.dedup(); // remove duplicates
+
     let highlighter = Box::new(ExampleHighlighter::new(commands.clone()));
 
     let completer = Box::new(DefaultCompleter::new_with_wordlen(commands.clone(), 2));
