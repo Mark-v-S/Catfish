@@ -1,7 +1,7 @@
 use crossterm::{
     cursor::SetCursorStyle,
     execute,
-    style::Stylize,
+    style::{StyledContent, Stylize},
     terminal::{Clear, ClearType},
 };
 use reedline::{
@@ -27,12 +27,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize, Serialize)]
 struct AppConfig {
     prompt: MyPrompt,
-}
-
-#[derive(Debug, Deserialize, Serialize, Default)]
-struct PromptConfig {
-    home_symbol: char,
-    prompt_symbol: String,
 }
 
 /// ---TOML STUFF END---
@@ -98,6 +92,7 @@ fn get_git_info() -> Option<String> {
         .output()
         .ok()?;
 
+    //println!("{:?}", dirty);
     let is_dirty = !dirty.stdout.is_empty();
 
     if is_dirty {
@@ -106,6 +101,101 @@ fn get_git_info() -> Option<String> {
         Some(format!(" ({branch}) "))
     }
 }
+
+//fn get_git_info_test() -> Option<String> {
+fn get_git_info_test() -> Option<StyledContent<String>> {
+    //StyledContent<String>
+    // get current branch
+    let branch = Command::new("git")
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .output()
+        .ok()?;
+
+    if !branch.status.success() {
+        return None; // not a git repo
+    }
+
+    let branch = String::from_utf8(branch.stdout).ok()?;
+    let branch = branch.trim();
+
+    // check if there are uncommited changes
+    let dirty = Command::new("git")
+        .args(["status", "--porcelain"])
+        .output()
+        .ok()?;
+
+    // Convert the output to a String
+    /*
+    let stdout = String::from_utf8(dirty.clone().stdout).expect("Invalid UTF-8 output");
+    println!("{:?}", stdout);
+    println!("{}", stdout);
+    let mut modifed = 0;
+    let mut added = 0;
+    let mut removed = 0;
+    let changes: Vec<&str> = stdout.split("\n").collect();
+    for mut c in changes {
+        c = c.trim_start();
+        println!("- {}", c);
+        if c.starts_with("??") {
+            added += 1;
+        } else if c.starts_with("D") {
+            removed += 1;
+        } else if c.starts_with("M") {
+            modifed += 1;
+        }
+    }
+    let mut gitdiff = String::from("");
+    println!("{}", modifed);
+    let mut modifedt = String::from("");
+    println!("{}", added);
+    let mut addedt = String::from("");
+    println!("{}", removed);
+    let mut removedt = String::from("");
+    //✚4…2
+    if modifed != 0 {
+        gitdiff.push_str(&format!("+{modifed}").to_string());
+        modifedt = format!("+{modifed}");
+    }
+    if removed != 0 {
+        gitdiff.push_str(&format!("-{removed}").to_string());
+        removedt = format!("-{removed}");
+    }
+    if added != 0 {
+        gitdiff.push_str(&format!("...{added}").to_string());
+        addedt = format!("...{added}");
+    }
+    */
+    let is_dirty = !dirty.stdout.is_empty();
+
+    if is_dirty {
+        let stdout = String::from_utf8(dirty.clone().stdout).expect("Invalid UTF-8 output");
+        let mut modifed = 0;
+        let mut added = 0;
+        let changes: Vec<&str> = stdout.split("\n").collect();
+        for mut c in changes {
+            c = c.trim_start();
+            if c.starts_with("??") {
+                added += 1;
+            } else if c.starts_with("D") {
+                modifed += 1;
+            } else if c.starts_with("M") {
+                modifed += 1;
+            }
+        }
+        let mut gitdiff = String::from("");
+        //✚4…2
+        if modifed != 0 {
+            gitdiff.push_str(&format!("✚{modifed}").to_string());
+        }
+        if added != 0 {
+            gitdiff.push_str(&format!("…{added}").to_string());
+        }
+        Some(format!(" ({} {}) ", branch.cyan(), gitdiff.red()).grey())
+    } else {
+        Some(format!(" ({}) ", branch.cyan()).grey())
+    }
+}
+
 ///
 
 fn execute_command(input: &str) {
@@ -168,7 +258,7 @@ impl Prompt for MyPrompt {
         let bottom_arrow = "╰╴".magenta();
         //let symbol = "ᓚᘏᗢ".dark_grey();
         let symbol = self.prompt_symbol.clone().dark_grey();
-        let git = get_git_info().unwrap_or_default();
+        let git = get_git_info_test().unwrap_or(StyledContent::from(format!("").grey()));
         Cow::Owned(format!(
             "{top_arrow}{usr} on {host} in {dir}{git}\n{bottom_arrow}{symbol} "
         ))
@@ -348,6 +438,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "mkdir" => mkdir(&args),
                     // rm comand //
                     "rm" => rm(&args),
+                    // test //
+                    //"gt" => println!("{}", get_git_info_test().unwrap_or_default()),
                     // exit shell //
                     "exit" | "quit" => break,
                     // du nothing and dont break //

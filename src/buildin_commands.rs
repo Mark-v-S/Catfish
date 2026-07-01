@@ -399,7 +399,7 @@ fn buildin_rm(files: Vec<&str>) {
 
 #[cfg(unix)]
 fn format_permissions(mode: u32) -> String {
-    let chars = ['x', 'w', 'r'];
+    //let chars = ['x', 'w', 'r'];
     let mut result = String::with_capacity(9);
 
     for i in (0..3).rev() {

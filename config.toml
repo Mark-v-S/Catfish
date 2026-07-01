@@ -1,3 +1,4 @@
 [prompt]
-home_symbol = "⛩"
 prompt_symbol = "ᓚᘏᗢ"
+home_symbol = "⛩"
+indicator = ">"
